@@ -40,7 +40,7 @@ pub async fn view_fursona(
 
     if let Some(user) = user {
         if let Some(fursona) = fursona {
-            // FIXME: Formatting is incorrect
+            // FIXME: #3 Formatting is incorrect
             let response = format!(
                 "{}'s fursona is a **{}** with a **{}** body type, **{}** markings, and the following accessories: {:?}. Their personality is: **{}**",
                 user.name,
@@ -58,7 +58,7 @@ pub async fn view_fursona(
         }
     } else {
         if let Some(fursona) = fursona {
-            // FIXME: Formatting is incorrect
+            // FIXME: #2 Formatting is incorrect
             let response = format!(
                 "Your fursona is a **{}** with a **{}** body type, **{}** markings, and the following accessories: {:?}. Their personality is: **{}**",
                 fursona.species,
@@ -70,7 +70,7 @@ pub async fn view_fursona(
 
             ctx.say(response).await?;
         } else {
-            // TODO: Add a button to create a fursona
+            // TODO: #1 Add a button to create a fursona
             ctx.say("You don't have a fursona yet!").await?;
         }
     }
@@ -173,7 +173,7 @@ async fn create_new_fursona(
         serenity::CreateSelectMenuOption::new("Dog", "dog"),
         serenity::CreateSelectMenuOption::new("Cat", "cat"),
         serenity::CreateSelectMenuOption::new("Fox", "fox"),
-        serenity::CreateSelectMenuOption::new("Wolf", "wolf"), // TODO: Add more species
+        serenity::CreateSelectMenuOption::new("Wolf", "wolf"), // TODO: #4 Add more species
     ];
 
     let mut selected_species = String::new();
@@ -440,7 +440,7 @@ async fn create_new_fursona(
                     _ => panic!("unexpected interaction data kind"),
                 };
 
-                // FIXME: Formatting is incorrect
+                // FIXME: #5 Formatting is incorrect
                 let reply = pages[page].clone().content(format!(
                     "What accessories does your fursona have? Selected: {:?}",
                     selected_accessories
@@ -467,7 +467,7 @@ async fn create_new_fursona(
                     page -= 1;
                 }
 
-                // FIXME: This is will not display the selected values
+                // FIXME: #6 This is will not display the selected values
                 let reply = pages[page].clone();
 
                 msg.edit(ctx, reply).await?;
