@@ -1,5 +1,6 @@
 use crate::{fursona::Fursona, Context, Error};
 use poise::serenity_prelude as serenity;
+use rand::prelude::SliceRandom;
 use std::thread;
 
 /// A simple ping command that responds with "Pong!" and the bot's latency.
@@ -115,7 +116,9 @@ pub async fn create_fursona(ctx: Context<'_>) -> Result<(), Error> {
         {
             match interaction.data.custom_id.as_str() {
                 "create_fursona" => {
-                    // TODO: Create a fursona with the user's input in a modal
+                    interaction.defer(ctx).await?;
+
+                    // Create a fursona with the user's input
                     create_new_fursona(ctx, Some(reply_msg)).await?;
 
                     return Ok(());
@@ -135,7 +138,7 @@ pub async fn create_fursona(ctx: Context<'_>) -> Result<(), Error> {
 
         reply_msg.edit(ctx, reply).await?;
     } else {
-        // TODO: Create a fursona with the user's input in a modal
+        // Create a fursona with the user's input
         create_new_fursona(ctx, None).await?;
     }
 
@@ -154,11 +157,13 @@ async fn create_new_fursona(
                 .content("Let's create a new fursona!")
                 .components(vec![]);
 
-            ctx.send(reply).await?
+            let msg = ctx.send(reply).await?;
+
+            thread::sleep(std::time::Duration::from_secs(1));
+
+            msg
         }
     };
-
-    thread::sleep(std::time::Duration::from_secs(1));
 
     // Dropdowns for species, body type, accessories, markings, and personality
 
@@ -462,7 +467,7 @@ async fn create_new_fursona(
                     page -= 1;
                 }
 
-                // FIXME: This is will not display the correct selected values
+                // FIXME: This is will not display the selected values
                 let reply = pages[page].clone();
 
                 msg.edit(ctx, reply).await?;
@@ -512,7 +517,11 @@ async fn create_new_fursona(
         interaction.defer(ctx).await?;
     }
 
-    // msg.edit(ctx, reply).await?;
+    let reply = poise::CreateReply::default()
+        .content("Timed out")
+        .components(vec![]);
+
+    msg.edit(ctx, reply).await?;
 
     Ok(())
 }
@@ -530,5 +539,129 @@ async fn cancel_action(ctx: Context<'_>, msg: poise::ReplyHandle<'_>) -> Result<
 /// A command to generate a random fursona.
 #[poise::command(slash_command, rename = "random")]
 pub async fn random_fursona(ctx: Context<'_>) -> Result<(), Error> {
+    // Check if user already has a fursona set
+    let fursona = {
+        let fursonas = ctx.data().fursonas.lock().unwrap();
+        let u = ctx.author();
+
+        fursonas.get(&u.id).cloned()
+    };
+
+    if let Some(_) = fursona {
+        let reply = {
+            let components = vec![serenity::CreateActionRow::Buttons(vec![
+                serenity::CreateButton::new("create_fursona")
+                    .label("Create Random Fursona")
+                    .style(serenity::ButtonStyle::Primary),
+                serenity::CreateButton::new("cancel")
+                    .label("Cancel")
+                    .style(serenity::ButtonStyle::Danger),
+            ])];
+
+            poise::CreateReply::default()
+                .ephemeral(true)
+                .content("You already have a fursona set!")
+                .components(components)
+        };
+
+        let reply_msg = ctx.send(reply).await?;
+
+        while let Some(interaction) = serenity::ComponentInteractionCollector::new(ctx)
+            .author_id(ctx.author().id)
+            .channel_id(ctx.channel_id())
+            .timeout(std::time::Duration::from_secs(60))
+            .await
+        {
+            match interaction.data.custom_id.as_str() {
+                "create_fursona" => {
+                    interaction.defer(ctx).await?;
+
+                    // Create a random fursona
+                    create_random_fursona(ctx, Some(reply_msg)).await?;
+
+                    return Ok(());
+                }
+                "cancel" => {
+                    cancel_action(ctx, reply_msg).await?;
+
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
+
+        let reply = poise::CreateReply::default()
+            .content("Timed out")
+            .components(vec![]);
+
+        reply_msg.edit(ctx, reply).await?;
+    } else {
+        // Create a random fursona
+        create_random_fursona(ctx, None).await?;
+    }
+
+    Ok(())
+}
+
+async fn create_random_fursona(
+    ctx: Context<'_>,
+    msg: Option<poise::ReplyHandle<'_>>,
+) -> Result<(), Error> {
+    let msg = match msg {
+        Some(msg) => msg,
+        None => {
+            let reply = poise::CreateReply::default()
+                .ephemeral(true)
+                .content("Creating Random Fursona...")
+                .components(vec![]);
+
+            let msg = ctx.send(reply).await?;
+
+            thread::sleep(std::time::Duration::from_secs(1));
+
+            msg
+        }
+    };
+
+    // Generate a random fursona
+    let species = ["Dog", "Cat", "Fox", "Wolf"];
+    let body_type = ["Slim", "Average", "Muscular", "Fluffy", "Chubby"];
+    let markings = ["None", "Stripes", "Spots", "Solid"];
+    let accessories = [
+        "Glasses",
+        "Scarf",
+        "Hat",
+        "Collar",
+        "Jewellery",
+        "Wings",
+        "Tail",
+        "Horns",
+    ];
+    let personality = ["Shy", "Friendly", "Silly", "Brave", "Caring", "Mischievous"];
+
+    let fursona = Fursona::new(
+        species[rand::random::<usize>() % species.len()].to_string(),
+        body_type[rand::random::<usize>() % body_type.len()].to_string(),
+        markings[rand::random::<usize>() % markings.len()].to_string(),
+        accessories
+            .choose_multiple(&mut rand::thread_rng(), rand::random::<usize>() % 3)
+            .map(|s| s.to_string())
+            .collect(),
+        personality[rand::random::<usize>() % personality.len()].to_string(),
+    );
+
+    {
+        let mut fursonas = ctx.data().fursonas.lock().unwrap();
+
+        fursonas.insert(ctx.author().id, fursona);
+    }
+
+    let reply = poise::CreateReply::default()
+        .ephemeral(true)
+        .content("Random Fursona created!")
+        .components(vec![]);
+
+    msg.edit(ctx, reply).await?;
+
     Ok(())
 }
