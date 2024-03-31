@@ -1,5 +1,6 @@
-use crate::{Context, Error};
+use crate::{fursona::Fursona, Context, Error};
 use poise::serenity_prelude as serenity;
+use std::thread;
 
 /// A simple ping command that responds with "Pong!" and the bot's latency.
 #[poise::command(slash_command)]
@@ -38,6 +39,7 @@ pub async fn view_fursona(
 
     if let Some(user) = user {
         if let Some(fursona) = fursona {
+            // FIXME: Formatting is incorrect
             let response = format!(
                 "{}'s fursona is a {} with a {} body type, {} markings, and the following accessories: {:?}. Their personality is: {}",
                 user.name,
@@ -55,6 +57,7 @@ pub async fn view_fursona(
         }
     } else {
         if let Some(fursona) = fursona {
+            // FIXME: Formatting is incorrect
             let response = format!(
                 "Your fursona is a {} with a {} body type, {} markings, and the following accessories: {:?}. Their personality is: {}",
                 fursona.species,
@@ -66,7 +69,8 @@ pub async fn view_fursona(
 
             ctx.say(response).await?;
         } else {
-            ctx.say("You don't have a fursona set!").await?;
+            // TODO: Add a button to create a fursona
+            ctx.say("You don't have a fursona yet!").await?;
         }
     }
 
@@ -76,6 +80,450 @@ pub async fn view_fursona(
 /// A command to create a fursona.
 #[poise::command(slash_command, rename = "create")]
 pub async fn create_fursona(ctx: Context<'_>) -> Result<(), Error> {
+    // Check if user already has a fursona set
+    let fursona = {
+        let fursonas = ctx.data().fursonas.lock().unwrap();
+        let u = ctx.author();
+
+        fursonas.get(&u.id).cloned()
+    };
+
+    if let Some(_) = fursona {
+        let reply = {
+            let components = vec![serenity::CreateActionRow::Buttons(vec![
+                serenity::CreateButton::new("create_fursona")
+                    .label("Create New Fursona")
+                    .style(serenity::ButtonStyle::Primary),
+                serenity::CreateButton::new("cancel")
+                    .label("Cancel")
+                    .style(serenity::ButtonStyle::Danger),
+            ])];
+
+            poise::CreateReply::default()
+                .ephemeral(true)
+                .content("You already have a fursona set!")
+                .components(components)
+        };
+
+        let reply_msg = ctx.send(reply).await?;
+
+        while let Some(interaction) = serenity::ComponentInteractionCollector::new(ctx)
+            .author_id(ctx.author().id)
+            .channel_id(ctx.channel_id())
+            .timeout(std::time::Duration::from_secs(60))
+            .await
+        {
+            match interaction.data.custom_id.as_str() {
+                "create_fursona" => {
+                    // TODO: Create a fursona with the user's input in a modal
+                    create_new_fursona(ctx, Some(reply_msg)).await?;
+
+                    return Ok(());
+                }
+                "cancel" => {
+                    cancel_action(ctx, reply_msg).await?;
+
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
+
+        let reply = poise::CreateReply::default()
+            .content("Timed out")
+            .components(vec![]);
+
+        reply_msg.edit(ctx, reply).await?;
+    } else {
+        // TODO: Create a fursona with the user's input in a modal
+        create_new_fursona(ctx, None).await?;
+    }
+
+    Ok(())
+}
+
+async fn create_new_fursona(
+    ctx: Context<'_>,
+    msg: Option<poise::ReplyHandle<'_>>,
+) -> Result<(), Error> {
+    let msg = match msg {
+        Some(msg) => msg,
+        None => {
+            let reply = poise::CreateReply::default()
+                .ephemeral(true)
+                .content("Let's create a new fursona!")
+                .components(vec![]);
+
+            ctx.send(reply).await?
+        }
+    };
+
+    thread::sleep(std::time::Duration::from_secs(1));
+
+    // Dropdowns for species, body type, accessories, markings, and personality
+
+    // Species
+    let species_options = vec![
+        serenity::CreateSelectMenuOption::new("Dog", "dog"),
+        serenity::CreateSelectMenuOption::new("Cat", "cat"),
+        serenity::CreateSelectMenuOption::new("Fox", "fox"),
+        serenity::CreateSelectMenuOption::new("Wolf", "wolf"), // TODO: Add more species
+    ];
+
+    let mut selected_species = String::new();
+
+    let species_page = poise::CreateReply::default()
+        .ephemeral(true)
+        .content("What species is your fursona?")
+        .components(vec![
+            serenity::CreateActionRow::SelectMenu(
+                serenity::CreateSelectMenu::new(
+                    "species",
+                    serenity::CreateSelectMenuKind::String {
+                        options: species_options,
+                    },
+                )
+                .placeholder("Select a species")
+                .min_values(1)
+                .max_values(1),
+            ),
+            serenity::CreateActionRow::Buttons(vec![
+                serenity::CreateButton::new("back")
+                    .label("Go Back")
+                    .style(serenity::ButtonStyle::Primary)
+                    .disabled(true),
+                serenity::CreateButton::new("next")
+                    .label("Next")
+                    .style(serenity::ButtonStyle::Success),
+                serenity::CreateButton::new("cancel")
+                    .label("Cancel")
+                    .style(serenity::ButtonStyle::Danger),
+            ]),
+        ]);
+
+    // body type
+    let body_type_options = vec![
+        serenity::CreateSelectMenuOption::new("Slim", "slim"),
+        serenity::CreateSelectMenuOption::new("Average", "average"),
+        serenity::CreateSelectMenuOption::new("Muscular", "muscular"),
+        serenity::CreateSelectMenuOption::new("Fluffy", "fluffy"),
+        serenity::CreateSelectMenuOption::new("Chubby", "chubby"),
+    ];
+
+    let mut selected_body_type = String::new();
+
+    let body_type_page = poise::CreateReply::default()
+        .ephemeral(true)
+        .content("What body type is your fursona?")
+        .components(vec![
+            serenity::CreateActionRow::SelectMenu(
+                serenity::CreateSelectMenu::new(
+                    "body_type",
+                    serenity::CreateSelectMenuKind::String {
+                        options: body_type_options,
+                    },
+                )
+                .placeholder("Select a body type")
+                .min_values(1)
+                .max_values(1),
+            ),
+            serenity::CreateActionRow::Buttons(vec![
+                serenity::CreateButton::new("back")
+                    .label("Go Back")
+                    .style(serenity::ButtonStyle::Primary),
+                serenity::CreateButton::new("next")
+                    .label("Next")
+                    .style(serenity::ButtonStyle::Success),
+                serenity::CreateButton::new("cancel")
+                    .label("Cancel")
+                    .style(serenity::ButtonStyle::Danger),
+            ]),
+        ]);
+
+    // markings
+    let markings_options = vec![
+        serenity::CreateSelectMenuOption::new("None", "none"),
+        serenity::CreateSelectMenuOption::new("Stripes", "stripes"),
+        serenity::CreateSelectMenuOption::new("Spots", "spots"),
+        serenity::CreateSelectMenuOption::new("Solid", "solid"),
+    ];
+
+    let mut selected_markings = String::new();
+
+    let markings_page = poise::CreateReply::default()
+        .ephemeral(true)
+        .content("What markings does your fursona have?")
+        .components(vec![
+            serenity::CreateActionRow::SelectMenu(
+                serenity::CreateSelectMenu::new(
+                    "markings",
+                    serenity::CreateSelectMenuKind::String {
+                        options: markings_options,
+                    },
+                )
+                .placeholder("Select markings")
+                .min_values(1)
+                .max_values(1),
+            ),
+            serenity::CreateActionRow::Buttons(vec![
+                serenity::CreateButton::new("back")
+                    .label("Go Back")
+                    .style(serenity::ButtonStyle::Primary),
+                serenity::CreateButton::new("next")
+                    .label("Next")
+                    .style(serenity::ButtonStyle::Success),
+                serenity::CreateButton::new("cancel")
+                    .label("Cancel")
+                    .style(serenity::ButtonStyle::Danger),
+            ]),
+        ]);
+
+    // accessories
+    let accessories_options = vec![
+        serenity::CreateSelectMenuOption::new("Glasses", "glasses"),
+        serenity::CreateSelectMenuOption::new("Scarf", "scarf"),
+        serenity::CreateSelectMenuOption::new("Hat", "hat"),
+        serenity::CreateSelectMenuOption::new("Collar", "collar"),
+        serenity::CreateSelectMenuOption::new("Jewellery", "jewellery"),
+        serenity::CreateSelectMenuOption::new("Wings", "wings"),
+        serenity::CreateSelectMenuOption::new("Tail", "tail"),
+        serenity::CreateSelectMenuOption::new("Horns", "horns"),
+    ];
+
+    let mut selected_accessories = Vec::new();
+
+    let accessories_page = poise::CreateReply::default()
+        .ephemeral(true)
+        .content("What accessories does your fursona have?")
+        .components(vec![
+            serenity::CreateActionRow::SelectMenu(
+                serenity::CreateSelectMenu::new(
+                    "accessories",
+                    serenity::CreateSelectMenuKind::String {
+                        options: accessories_options,
+                    },
+                )
+                .placeholder("Select accessories")
+                .min_values(0)
+                .max_values(3),
+            ),
+            serenity::CreateActionRow::Buttons(vec![
+                serenity::CreateButton::new("back")
+                    .label("Go Back")
+                    .style(serenity::ButtonStyle::Primary),
+                serenity::CreateButton::new("next")
+                    .label("Next")
+                    .style(serenity::ButtonStyle::Success),
+                serenity::CreateButton::new("cancel")
+                    .label("Cancel")
+                    .style(serenity::ButtonStyle::Danger),
+            ]),
+        ]);
+
+    // personality
+    let personality_options = vec![
+        serenity::CreateSelectMenuOption::new("Shy", "shy"),
+        serenity::CreateSelectMenuOption::new("Friendly", "friendly"),
+        serenity::CreateSelectMenuOption::new("Silly", "silly"),
+        serenity::CreateSelectMenuOption::new("Brave", "brave"),
+        serenity::CreateSelectMenuOption::new("Caring", "caring"),
+        serenity::CreateSelectMenuOption::new("Mischievous", "mischievous"),
+    ];
+
+    let mut selected_personality = String::new();
+
+    let personality_page = poise::CreateReply::default()
+        .ephemeral(true)
+        .content("What is your fursona's personality?")
+        .components(vec![
+            serenity::CreateActionRow::SelectMenu(
+                serenity::CreateSelectMenu::new(
+                    "personality",
+                    serenity::CreateSelectMenuKind::String {
+                        options: personality_options,
+                    },
+                )
+                .placeholder("Select personality")
+                .min_values(1)
+                .max_values(1),
+            ),
+            serenity::CreateActionRow::Buttons(vec![
+                serenity::CreateButton::new("back")
+                    .label("Go Back")
+                    .style(serenity::ButtonStyle::Primary),
+                serenity::CreateButton::new("create")
+                    .label("Create Fursona")
+                    .style(serenity::ButtonStyle::Success),
+                serenity::CreateButton::new("cancel")
+                    .label("Cancel")
+                    .style(serenity::ButtonStyle::Danger),
+            ]),
+        ]);
+
+    // page management
+
+    let mut page = 0;
+    let pages = vec![
+        species_page,
+        body_type_page,
+        markings_page,
+        accessories_page,
+        personality_page,
+    ];
+
+    // Reply to the user with the first page listen for interactions
+
+    let reply = pages[page].clone();
+
+    msg.edit(ctx, reply).await?;
+
+    while let Some(interaction) = serenity::ComponentInteractionCollector::new(ctx)
+        .author_id(ctx.author().id)
+        .channel_id(ctx.channel_id())
+        .timeout(std::time::Duration::from_secs(300))
+        .await
+    {
+        match interaction.data.custom_id.as_str() {
+            "species" => {
+                selected_species = match &interaction.data.kind {
+                    serenity::ComponentInteractionDataKind::StringSelect { values } => {
+                        values[0].clone()
+                    }
+                    _ => panic!("unexpected interaction data kind"),
+                };
+                println!("{:?}", interaction.data);
+
+                let reply = pages[page].clone().content(format!(
+                    "What species is your fursona? Selected: {selected_species}"
+                ));
+
+                msg.edit(ctx, reply).await?;
+            }
+            "body_type" => {
+                selected_body_type = match &interaction.data.kind {
+                    serenity::ComponentInteractionDataKind::StringSelect { values } => {
+                        values[0].clone()
+                    }
+                    _ => panic!("unexpected interaction data kind"),
+                };
+
+                let reply = pages[page].clone().content(format!(
+                    "What body type is your fursona? Selected: {selected_body_type}"
+                ));
+
+                msg.edit(ctx, reply).await?;
+            }
+            "markings" => {
+                selected_markings = match &interaction.data.kind {
+                    serenity::ComponentInteractionDataKind::StringSelect { values } => {
+                        values[0].clone()
+                    }
+                    _ => panic!("unexpected interaction data kind"),
+                };
+
+                let reply = pages[page].clone().content(format!(
+                    "What markings does your fursona have? Selected: {selected_markings}"
+                ));
+
+                msg.edit(ctx, reply).await?;
+            }
+            "accessories" => {
+                selected_accessories = match &interaction.data.kind {
+                    serenity::ComponentInteractionDataKind::StringSelect { values } => {
+                        values.clone()
+                    }
+                    _ => panic!("unexpected interaction data kind"),
+                };
+
+                // FIXME: Formatting is incorrect
+                let reply = pages[page].clone().content(format!(
+                    "What accessories does your fursona have? Selected: {:?}",
+                    selected_accessories
+                ));
+
+                msg.edit(ctx, reply).await?;
+            }
+            "personality" => {
+                selected_personality = match &interaction.data.kind {
+                    serenity::ComponentInteractionDataKind::StringSelect { values } => {
+                        values[0].clone()
+                    }
+                    _ => panic!("unexpected interaction data kind"),
+                };
+
+                let reply = pages[page].clone().content(format!(
+                    "What is your fursona's personality? Selected: {selected_personality}"
+                ));
+
+                msg.edit(ctx, reply).await?;
+            }
+            "back" => {
+                if page > 0 {
+                    page -= 1;
+                }
+
+                // FIXME: This is will not display the correct selected values
+                let reply = pages[page].clone();
+
+                msg.edit(ctx, reply).await?;
+            }
+            "next" => {
+                if page < pages.len() - 1 {
+                    page += 1;
+                }
+
+                let reply = pages[page].clone();
+
+                msg.edit(ctx, reply).await?;
+            }
+            "cancel" => {
+                cancel_action(ctx, msg).await?;
+
+                return Ok(());
+            }
+            "create" => {
+                // Create the fursona
+                let fursona = Fursona::new(
+                    selected_species,
+                    selected_body_type,
+                    selected_markings,
+                    selected_accessories,
+                    selected_personality,
+                );
+
+                {
+                    let mut fursonas = ctx.data().fursonas.lock().unwrap();
+
+                    fursonas.insert(ctx.author().id, fursona);
+                }
+
+                let reply = poise::CreateReply::default()
+                    .ephemeral(true)
+                    .content("Fursona created!")
+                    .components(vec![]);
+
+                msg.edit(ctx, reply).await?;
+
+                return Ok(());
+            }
+            _ => {}
+        }
+
+        interaction.defer(ctx).await?;
+    }
+
+    // msg.edit(ctx, reply).await?;
+
+    Ok(())
+}
+
+async fn cancel_action(ctx: Context<'_>, msg: poise::ReplyHandle<'_>) -> Result<(), Error> {
+    let reply = poise::CreateReply::default()
+        .content("Action cancelled")
+        .components(vec![]);
+
+    msg.edit(ctx, reply).await?;
+
     Ok(())
 }
 
