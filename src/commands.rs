@@ -42,7 +42,7 @@ pub async fn view_fursona(
         if let Some(fursona) = fursona {
             // FIXME: Formatting is incorrect
             let response = format!(
-                "{}'s fursona is a {} with a {} body type, {} markings, and the following accessories: {:?}. Their personality is: {}",
+                "{}'s fursona is a **{}** with a **{}** body type, **{}** markings, and the following accessories: {:?}. Their personality is: **{}**",
                 user.name,
                 fursona.species,
                 fursona.body_type,
@@ -60,7 +60,7 @@ pub async fn view_fursona(
         if let Some(fursona) = fursona {
             // FIXME: Formatting is incorrect
             let response = format!(
-                "Your fursona is a {} with a {} body type, {} markings, and the following accessories: {:?}. Their personality is: {}",
+                "Your fursona is a **{}** with a **{}** body type, **{}** markings, and the following accessories: {:?}. Their personality is: **{}**",
                 fursona.species,
                 fursona.body_type,
                 fursona.markings,
@@ -166,6 +166,7 @@ async fn create_new_fursona(
     };
 
     // Dropdowns for species, body type, accessories, markings, and personality
+    // REWRITE: This is a mess, refactor this into a more readable and maintainable state
 
     // Species
     let species_options = vec![
@@ -396,7 +397,6 @@ async fn create_new_fursona(
                     }
                     _ => panic!("unexpected interaction data kind"),
                 };
-                println!("{:?}", interaction.data);
 
                 let reply = pages[page].clone().content(format!(
                     "What species is your fursona? Selected: {selected_species}"
