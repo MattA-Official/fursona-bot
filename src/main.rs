@@ -1,4 +1,5 @@
 mod commands;
+mod fursona;
 
 use dotenvy::dotenv;
 use poise::serenity_prelude as serenity;
@@ -13,7 +14,9 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 // User data, which is stored and accessible in all command invocations
-struct Data {}
+struct Data {
+    fursonas: Arc<Mutex<HashMap<serenity::UserId, fursona::Fursona>>>,
+}
 
 async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     // This is our custom error handler
@@ -44,7 +47,7 @@ async fn main() {
 
     let options = poise::FrameworkOptions {
         on_error: |error| Box::pin(on_error(error)),
-        commands: vec![commands::ping()],
+        commands: vec![commands::ping(), commands::fursona()],
         ..Default::default()
     };
 
@@ -55,7 +58,9 @@ async fn main() {
                 poise::builtins::register_in_guild(ctx, &framework.options().commands, guild_id)
                     .await?;
 
-                Ok(Data {})
+                Ok(Data {
+                    fursonas: Arc::new(Mutex::new(HashMap::new())),
+                })
             })
         })
         .build();
