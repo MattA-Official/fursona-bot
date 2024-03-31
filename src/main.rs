@@ -47,7 +47,11 @@ async fn main() {
 
     let options = poise::FrameworkOptions {
         on_error: |error| Box::pin(on_error(error)),
-        commands: vec![commands::ping(), commands::fursona()],
+        commands: vec![
+            commands::ping(),
+            commands::fursona(),
+            commands::export_fursonas(),
+        ],
         ..Default::default()
     };
 

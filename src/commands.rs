@@ -665,3 +665,38 @@ async fn create_random_fursona(
 
     Ok(())
 }
+
+/// A command to export all fursonas.
+#[poise::command(slash_command)]
+pub async fn export_fursonas(ctx: Context<'_>) -> Result<(), Error> {
+    let fursonas = {
+        let fursonas = ctx.data().fursonas.lock().unwrap();
+
+        fursonas.clone()
+    };
+
+    let mut export = Vec::new();
+
+    for (user_id, fursona) in fursonas.iter() {
+        // Convert user ids into usernames
+        let username = match ctx.http().get_user(*user_id).await {
+            Ok(user) => user.name,
+            Err(_) => format!("Unknown User ({})", user_id),
+        };
+
+        export.push((username, fursona));
+    }
+
+    // Export as a json file
+    let json_export = serde_json::to_string(&export)?;
+    let file_name = "fursonas.json";
+    let file_content = serenity::CreateAttachment::bytes(json_export.as_bytes(), file_name);
+
+    let reply = poise::CreateReply::default()
+        .content("Here is the exported fursonas file:")
+        .attachment(file_content);
+
+    ctx.send(reply).await?;
+
+    Ok(())
+}
